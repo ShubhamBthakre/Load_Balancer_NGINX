@@ -1,0 +1,30 @@
+{
+  "name": "nginx-zero-to-hero",
+  "version": "1.0.0",
+  "description": "**Beginner-Friendly Guide for DevOps and Cloud Engineers**",
+  "main": "index.js",
+  "types": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --watch app.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShubhamBthakre/Load_Balancer_NGINX.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ShubhamBthakre/Load_Balancer_NGINX/issues"
+  },
+  "homepage": "https://github.com/ShubhamBthakre/Load_Balancer_NGINX#readme",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
+  }
+}
