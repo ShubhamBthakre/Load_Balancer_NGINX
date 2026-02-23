@@ -1,22 +1,56 @@
+## Communication flow in a web system
+
+
+
+
+
+
+
+## What Was the Problem (Before NGINX)
+# Direct Client → Application Access
+- Client was calling the Node.js app directly
+- Node js App was exposed on: Open ports (e.g., 3000, 3001),Public IP / DNS
+- Every client request hit the Node js app without protection
+
+## Problems with This Approach
+- ❌ Security risk (app exposed to internet).
+- ❌ No rate limiting → vulnerable to abuse/DDoS
+- ❌ No TLS termination → HTTPS handling inside app
+- ❌ No load balancing
+- ❌ Hard to scale (clients tied to one server)
+- ❌ App must handle too many responsibilities
+
+
 # 📘 Section 1: Introduction to NGINX
 
 ## ✅ What is NGINX?
 
-**NGINX** is an open-source, high-performance web server that also functions as:
-- A reverse proxy
-- Load balancer
-- HTTP cache
+**NGINX** (pronounced “engine-x”) is an open-source, high-performance web server that also functions as:
+- Web Server (serve static files): Serving static React/Angular apps     
+- A reverse proxy :Forwarding requests to backend apps (Node.js, Python, Java)      
+- Load balancer :  Distributing load between multiple backend servers          
+- HTTP cache :Reducing load on upstream services 
 - Mail proxy
+- SSL/TLS Termination : Handling HTTPS at the edge
+- Rate limiting & security enforcement : Protecting APIs from abuse or bots
 
-It is designed for high concurrency, performance, and low memory usage — making it ideal for modern DevOps and cloud environments.
+- In modern systems, Nginx is rarely “just a web server” — it sits in front of applications and controls traffic.
+- It is designed for high concurrency, performance, and low memory usage — making it ideal for modern DevOps and cloud environments.
 
----
+## Why Nginx was created (Real Problem)?
 
-## Reverse Proxy
+- Earlier, Apache HTTPD was dominant.
+- Problem with Apache (Traditional model):
+- One thread/process per request
+- High memory usage
+- Poor performance under high concurrency
+- Not cloud-friendly
 
-<img width="1536" height="1024" alt="nginx-reverse-proxy" src="https://github.com/user-attachments/assets/1c9fbec8-b7b6-4385-bf96-dd6598842b81" />
-
----
+## Nginx Solution:
+- Event-driven, non-blocking architecture
+- Handles 10,000+ concurrent connections with low memory
+- Designed for modern internet scale
+- This is why Nginx dominates cloud, microservices, Kubernetes, Docker environments.
 
 ## 📊 NGINX vs Apache (Why DevOps Prefer NGINX)
 
@@ -34,23 +68,36 @@ It is designed for high concurrency, performance, and low memory usage — makin
 - Ease of automation
 - Docker/Kubernetes friendliness
 
----
+## How Nginx Works Internally (Very Important)
+- Event-Driven Model (Key Concept)
+- Instead of:One request = one thread”, Nginx does:“One worker handles thousands of requests asynchronously”
 
-## 🧰 Common DevOps Use Cases for NGINX
+## Core Components of NGINX
+- Master Process :Reads config,Manages workers
+- Worker Processes :Handle all client requests,Non-blocking I/O
 
-| Use Case                              | Example                                                                 |
-|--------------------------------------|-------------------------------------------------------------------------|
-| Web server                           | Serving static React/Angular apps                                      |
-| Reverse proxy                        | Forwarding requests to backend apps (Node.js, Python, Java)            |
-| Load balancer                        | Distributing load between multiple backend servers                     |
-| SSL termination                      | Handling HTTPS at the edge                                             |
-| Caching                              | Reducing load on upstream services                                     |
-| Ingress controller (Kubernetes)      | Managing traffic inside Kubernetes clusters                            |
-| Rate limiting & security enforcement | Protecting APIs from abuse or bots                                     |
 
----
 
 ## 🛠️ Installing NGINX
+
+## Step 1: Launch EC2 Instance
+- Name:nginx-server , download the ppk file and connect the server by using putty
+
+- run the fallowing commands (-y) because it will default set requires packages
+
+```bash
+sudo apt update & sudo apt upgrade -y
+sudo apt install nginx -y
+
+
+-TO check the Ubuntu help on VM machine weather it is running or not
+
+```bash
+sudo systemctl status nginx
+```
+
+## Step 2: Allow Inbound traffic for EC2 Instance IP Address by using security groups configurations
+
 
 ### 🐧 On Ubuntu/Debian
 ```bash
@@ -87,31 +134,94 @@ Visit: `http://localhost:8080`
 
 ## 🧪 Demo: Run NGINX Using Docker
 
-### Step 1: Run container
+### Step 1: Run Multiple BE Instances
 ```bash
-docker run --name nginx-demo -p 8080:80 -d nginx
+# Terminal 1
+PORT=3001 npm start
+
+# Terminal 2
+PORT=3002 npm start
+
+# Terminal 3
+PORT=3003 npm start
 ```
 
-### Step 2: Test in browser
-Visit: `http://localhost:8080`  
-You should see the **Welcome to NGINX** page.
 
-### Step 3: View Logs
+### Step 2: Create NGINX Config for Load Balancing
+-Create a project folder:
 ```bash
-docker logs nginx-demo
+mkdir erp-loadbalancer
+cd erp-loadbalancer
 ```
 
-### Step 4: Clean up
+-Create a file named:
+-nginx.conf
+
+# ROUND ROBIN (Default)
+
+-nginx.conf
+events {}
+
+http {
+    upstream erp_backend {
+        server host.docker.internal:3001;
+        server host.docker.internal:3002;
+        server host.docker.internal:3003;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://erp_backend;
+        }
+    }
+}
+
+### Step 4:Run NGINX Load Balancer in Docker
 ```bash
-docker stop nginx-demo
-docker rm nginx-demo
+docker run --name erp-nginx \
+  -p 8080:80 \
+  -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf \
+  -d nginx
 ```
+### Step 5:Verify Round Robin is Working
+- Refresh multiple times — requests will rotate between ERP instances.
+- Add a small log in your ERP backend:
+-console.log("Served from PORT:", process.env.PORT);
+-Now refresh browser → terminal logs should show:
+- Served from PORT: 3001
+- Served from PORT: 3002
+- Served from PORT: 3003
+- Served from PORT: 3001
+...
+
+
+### Step 6: WEIGHTED ROUND ROBIN
+-Now modify nginx.conf
+events {}
+
+http {
+    upstream erp_backend {
+        server host.docker.internal:3001 weight=3;
+        server host.docker.internal:3002 weight=1;
+        server host.docker.internal:3003 weight=1;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://erp_backend;
+        }
+    }
+}
+
+
+### Restart NGINX
+
+- docker restart erp-nginx
 
 ---
 
-## 🎯 Summary
 
-- NGINX is a lightweight, high-performance web server and reverse proxy.
-- Widely used in DevOps for load balancing, SSL termination, and as a reverse proxy.
-- Easy to install via Linux package managers or Docker.
-- Supports modular configuration — great for automation and CI/CD.
